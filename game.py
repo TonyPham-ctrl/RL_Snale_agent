@@ -2,7 +2,7 @@ from collections import namedtuple
 import pygame
 import random
 
-
+import numpy as np
 
 Point = namedtuple('Point', 'x y')
 
@@ -59,6 +59,7 @@ class Game:
         return self.head == self.food
 
     def play_step(self, action):
+        self.frame_iteration += 1
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -75,19 +76,24 @@ class Game:
         self.move(action)
         self.snake.insert(0, self.head)
 
+        reward = 0
+        game_over = False
         if self.is_collision():
+            game_over = True
+            reward = -10
             self.running = False
             return self.score
         
         if self.ate_food():
             self.score += 1
+            reward = 10
             self.place_food()
         else:
             self.snake.pop()
         pygame.display.flip()
         self.clock.tick(10)
         self._update_ui()
-        return self.score
+        return reward, game_over, self.score
     
     def _update_ui(self):
         self.display.fill(pygame.Color('black'))
@@ -105,7 +111,52 @@ class Game:
             score = self.play_step(action)
             print('Score:', score)
         pygame.quit()
+    def get_state(self):
+        head = self.snake[0]
+        point_l = Point(head.x - BLOCK, head.y)
+        point_r = Point(head.x + BLOCK, head.y)
+        point_u = Point(head.x, head.y - BLOCK)
+        point_d = Point(head.x, head.y + BLOCK)
 
+        dir_l = self.direction == 'LEFT'
+        dir_r = self.direction == 'RIGHT'
+        dir_u = self.direction == 'UP'
+        dir_d = self.direction == 'DOWN'
+
+        state = [
+            # Danger straight
+            (dir_r and self.is_collision(point_r)) or 
+            (dir_l and self.is_collision(point_l)) or 
+            (dir_u and self.is_collision(point_u)) or 
+            (dir_d and self.is_collision(point_d)),
+
+            # Danger right
+            (dir_u and self.is_collision(point_r)) or 
+            (dir_d and self.is_collision(point_l)) or 
+            (dir_l and self.is_collision(point_u)) or 
+            (dir_r and self.is_collision(point_d)),
+
+            # Danger left
+            (dir_d and self.is_collision(point_r)) or 
+            (dir_u and self.is_collision(point_l)) or 
+            (dir_r and self.is_collision(point_u)) or 
+            (dir_l and self.is_collision(point_d)),
+
+            # Move direction
+            dir_l,
+            dir_r,
+            dir_u,
+            dir_d,
+
+            # Food location
+            self.food.x < head.x,  # food left
+            self.food.x > head.x,  # food right
+            self.food.y < head.y,  # food up
+            self.food.y > head.y   # food down
+        ]
+
+        return np.array(state, dtype=int)
+    
     def move(self, action):
         clock_wise = ['RIGHT', 'DOWN', 'LEFT', 'UP']
         idx = clock_wise.index(self.direction)
