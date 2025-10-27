@@ -82,8 +82,8 @@ class Game:
             game_over = True
             reward = -10
             self.running = False
-            return self.score
-        
+            return reward, game_over, self.score
+        reward -= 0.1
         if self.ate_food():
             self.score += 1
             reward = 10
@@ -91,7 +91,7 @@ class Game:
         else:
             self.snake.pop()
         pygame.display.flip()
-        self.clock.tick(10)
+        self.clock.tick(100)
         self._update_ui()
         return reward, game_over, self.score
     
